@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Centium Karaoke</title>
+  <style>
+    :root{
+      --c1:#1100ff; --c2:#ff3ea5; --c3:#21d07a;
+      --white: rgba(255,255,255,.96);
+      --blue: #1100ff;
+    }
+
+    /* ===== 本地字体：同目录 font.ttf ===== */
+    @font-face{
+      font-family: "LocalFont";
+      src: url("./font.ttf") format("truetype");
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:#070a10;
+      overflow:hidden; /* ✅ 不显示滚动条 */
+      color:var(--white);
+      font-family: "LocalFont", ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", Arial;
+    }
+
+    /* ===== 背景：视频优先；否则用封面取色的流光 ===== */
+    .bg{ position:fixed; inset:0; z-index:-3; overflow:hidden; }
+    #bgVideo{
+      position:absolute; inset:0;
+      width:100%; height:100%;
+      object-fit:cover;
+      display:none;
+      filter: saturate(1.05) contrast(1.03) brightness(.9);
+      transform: translateZ(0);
+    }
+    .flow{ position:absolute; inset:0; display:none; }
+    .flow::before{
+      content:"";
+      position:absolute; inset:-30%;
+      background:
+        radial-gradient(closest-side at 15% 20%, color-mix(in srgb, var(--c1) 80%, transparent) 0%, transparent 60%),
+        radial-gradient(closest-side at 85% 30%, color-mix(in srgb, var(--c2) 75%, transparent) 0%, transparent 60%),
+        radial-gradient(closest-side at 40% 85%, color-mix(in srgb, var(--c3) 70%, transparent) 0%, transparent 60%),
+        conic-gradient(from 180deg,
+          color-mix(in srgb, var(--c1) 55%, transparent),
+          color-mix(in srgb, var(--c2) 55%, transparent),
+          color-mix(in srgb, var(--c3) 55%, transparent),
+          color-mix(in srgb, var(--c1) 55%, transparent)
+        );
+      filter: blur(28px) saturate(1.25);
+      opacity:.95;
+      animation: drift 14s ease-in-out infinite alternate;
+      transform: translate3d(0,0,0);
+    }
+    .flow::after{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        radial-gradient(circle at 50% 60%, rgba(0,0,0,.12), rgba(0,0,0,.62) 68%, rgba(0,0,0,.86)),
+        repeating-linear-gradient(0deg, rgba(255,255,255,.018), rgba(255,255,255,.018) 1px, transparent 1px, transparent 3px);
+      mix-blend-mode: overlay;
+      pointer-events:none;
+    }
+    @keyframes drift{
+      0%{ transform: translate(-6%, -4%) scale(1.02) rotate(-4deg); }
+      100%{ transform: translate(6%, 5%) scale(1.05) rotate(4deg); }
+    }
+
+    /* ===== KTV 歌词区域（屏幕下方，固定两行） ===== */
+    .kara{
+      position:fixed; left:0; right:0; bottom:0;
+      padding: 18px 22px 26px;
+      z-index: 5;
+      pointer-events:none;
+    }
+    .kara-inner{
+      max-width: 1200px;
+      margin: 0 auto;
+      display:flex;
+      flex-direction: column;
+      gap: 6px; /* ✅ 两行距离更小 */
+    }
+
+    /* ✅ 完全隐藏歌词背景：透明、无边框、无阴影 */
+    .lineWrap{
+      position:relative;
+      padding: 8px 2px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      overflow:hidden;
+    }
+
+    .karaLine{
+      position:relative;
+      font-size: 70px;
+      line-height: 1.22;
+      letter-spacing: .02em;
+      text-shadow: 0 10px 26px rgba(0,0,0,.55);
+      word-break: break-word;
+      white-space: pre-wrap;
+      -webkit-text-stroke: 1px #ffffff;
+    text-shadow:
+    0 0 6px rgba(255,255,255,.6),
+    0 10px 26px rgba(0,0,0,.55);
+    }
+
+    
+    /* 下行歌词居右；上行保持默认靠左 */
+    #bottomLine{ text-align: right; }
+/* 字体规则（按行主要脚本切） */
+    .karaLine.cn{ font-family: "LocalFont", serif; }
+    .karaLine.other{ font-family: "LocalFont", serif; }
+
+    .ch{
+      color: var(--white);
+      display:inline-block;
+      padding: 0 0.5px;
+      transition: color .02s linear;
+    }
+    .ch.played{ color: var(--blue); }
+
+    /* ===== 提前开唱三个小圆球（预告行显示） ===== */
+    .prep{
+      position:absolute;
+      right: 6px;
+      top: 2px;
+      display:flex;
+      gap: 7px;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity .16s ease, transform .16s ease;
+    }
+    .prep.show{ opacity: 1; transform: translateY(0); }
+    .dot{
+      width: 8px; height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.55);
+      animation: pulse 1.0s ease-in-out infinite;
+      opacity: .55;
+    }
+    .dot.on{ background: rgba(255,255,255,.92); opacity: 1; }
+    .dot:nth-child(2){ animation-delay: .12s; }
+    .dot:nth-child(3){ animation-delay: .24s; }
+    @keyframes pulse{
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-3px); }
+    }
+
+    /* ===== 上传/开始：播放时隐藏 ===== */
+    .gate{
+      position:fixed; inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: 18px;
+      z-index: 20;
+      background: rgba(0,0,0,.35);
+    }
+    .card{
+      width: min(820px, 100%);
+      border-radius: 26px;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+      border: 1px solid rgba(255,255,255,.16);
+      box-shadow: 0 16px 60px rgba(0,0,0,.55);
+      color: rgba(255,255,255,.92);
+    }
+    .card h1{
+      margin: 0 0 10px;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: .02em;
+    }
+    .row{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items:center;
+      margin-top: 10px;
+    }
+    label.pick{
+      display:inline-flex;
+      align-items:center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.18);
+      cursor:pointer;
+      user-select:none;
+    }
+    label.pick input{ display:none; }
+    .tag{
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(0,0,0,.18);
+      color: rgba(255,255,255,.75);
+    }
+    .btn{
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.10);
+      color: rgba(255,255,255,.92);
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-weight: 900;
+      cursor:pointer;
+      box-shadow: 0 10px 26px rgba(0,0,0,.24);
+    }
+    .btn:disabled{ opacity:.45; cursor:not-allowed; }
+    .hint{
+      margin-top: 10px;
+      font-size: 12px;
+      color: rgba(255,255,255,.74);
+      line-height: 1.6;
+    }
+
+    /* 不显示任何媒体控件 */
+    audio{ display:none; }
+
+    @media (max-width: 720px){
+      .karaLine{ font-size: 26px; }
+      .kara{ padding: 16px 16px 22px; }
+      .kara-inner{ gap: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg">
+    <video id="bgVideo" playsinline muted></video>
+    <div class="flow" id="bgFlow"></div>
+  </div>
+
+  <!-- 固定上下两行（位置永远不变） -->
+  <div class="kara">
+    <div class="kara-inner">
+      <div class="lineWrap">
+        <div class="prep" id="prepTop">
+          <span class="dot" id="t1"></span><span class="dot" id="t2"></span><span class="dot" id="t3"></span>
+        </div>
+        <div class="karaLine other" id="topLine"></div>
+      </div>
+
+      <div class="lineWrap">
+        <div class="prep" id="prepBottom">
+          <span class="dot" id="b1"></span><span class="dot" id="b2"></span><span class="dot" id="b3"></span>
+        </div>
+        <div class="karaLine other" id="bottomLine"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 上传 / 开始 -->
+  <div class="gate" id="gate">
+    <div class="card">
+      <h1>KTV 卡拉OK（双行固定 / 按 .krk 严格变色）</h1>
+      <div class="row">
+        <label class="pick">
+          <span>上传音频</span><span class="tag">mp3 / flac / ...</span>
+          <input id="audioFile" type="file" accept="audio/*,.flac" />
+        </label>
+        <label class="pick">
+          <span>上传歌词</span><span class="tag">.krk</span>
+          <input id="krkFile" type="file" accept=".krk,text/plain" />
+        </label>
+        <label class="pick">
+          <span>上传背景视频</span><span class="tag">可选</span>
+          <input id="videoFile" type="file" accept="video/*" />
+        </label>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnStart" disabled>开始播放</button>
+        <span class="tag" id="state">待机</span>
+      </div>
+      <div class="hint">
+        变色规则：严格按 .krk 每个时间戳触发“单位”变蓝（英文单词同一时间戳会整词一起蓝）。<br/>
+        若上传视频：视频静音同步播放。未上传：封面取色流光背景。播放后不显示控件；仅歌词。空格可暂停/继续。
+      </div>
+    </div>
+  </div>
+
+  <audio id="audio" crossorigin="anonymous"></audio>
+
+  <script>
+    // ========= DOM =========
+    const elGate = document.getElementById("gate");
+    const elState = document.getElementById("state");
+    const btnStart = document.getElementById("btnStart");
+
+    const elAudioFile = document.getElementById("audioFile");
+    const elKrkFile = document.getElementById("krkFile");
+    const elVideoFile = document.getElementById("videoFile");
+
+    const elAudio = document.getElementById("audio");
+
+    const bgVideo = document.getElementById("bgVideo");
+    const bgFlow = document.getElementById("bgFlow");
+
+    const topLine = document.getElementById("topLine");
+    const bottomLine = document.getElementById("bottomLine");
+
+    const prepTop = document.getElementById("prepTop");
+    const prepBottom = document.getElementById("prepBottom");
+    const dotsTop = [document.getElementById("t1"),document.getElementById("t2"),document.getElementById("t3")];
+    const dotsBot = [document.getElementById("b1"),document.getElementById("b2"),document.getElementById("b3")];
+
+    // ========= State =========
+    let audioFile = null;
+    let krkText = "";
+    let videoFile = null;
+
+    // parsed lines: { text, startTime, endTime, spans: [{el, timeSec|null}] }
+    let lines = [];
+    let timedIdxs = [];  // line indices that contain at least one timestamp
+
+    let rafId = null;
+    let slot = 0;
+
+    // currently rendered index in top/bottom
+    let topIdx = -1;
+    let botIdx = -1;
+
+    // ========= Helpers =========
+    const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
+    const isAsciiLetter = (c)=> /^[A-Za-z]$/.test(c);
+
+    function setPalette(cols){
+      const r = document.documentElement;
+      r.style.setProperty("--c1", cols[0] || "#2a6cff");
+      r.style.setProperty("--c2", cols[1] || "#ff3ea5");
+      r.style.setProperty("--c3", cols[2] || "#21d07a");
+    }
+
+    function detectLineClass(text){
+      if(/[\u4E00-\u9FFF]/.test(text)) return "cn";
+      if(/[\u3040-\u30FF\uAC00-\uD7AF]/.test(text)) return "other"; // 日/韩
+      return "other"; // 英文也宋体
+    }
+
+    function setPrep(prepEl, dots, show, onCount){
+      if(!show){
+        prepEl.classList.remove("show");
+        dots.forEach(d=>d.classList.remove("on"));
+        return;
+      }
+      prepEl.classList.add("show");
+      dots.forEach((d,i)=> d.classList.toggle("on", i < onCount));
+    }
+
+    // ========= .krk strict parser (per displayed character timing) =========
+    function parseKrkStrict(text){
+      const raw = (text||"").replace(/\r\n/g,"\n").split("\n");
+      const out = [];
+      const timed = [];
+
+      raw.forEach((lineText, idx)=>{
+        const parts = []; // {s, t|null}
+        let minT = null, maxT = null;
+
+        let i = 0;
+        while(i < lineText.length){
+          if(lineText[i] === "[" && i + 10 < lineText.length){
+            const maybe = lineText.slice(i, i + 11);
+            const t = parseTimestampToSec(maybe);
+            if(t !== null){
+              i += 11;
+              const after = lineText.slice(i);
+              const { unit, len } = extractUnit(after);
+              parts.push({ s: unit, t });
+              minT = (minT === null) ? t : Math.min(minT, t);
+              maxT = (maxT === null) ? t : Math.max(maxT, t);
+              i += len;
+              continue;
+            }
+          }
+          parts.push({ s: lineText[i], t: null });
+          i++;
+        }
+
+        const plain = parts.map(p=>p.s).join("");
+        if(minT !== null) timed.push(idx);
+
+        out.push({
+          text: plain,
+          startTime: minT,
+          endTime: maxT,
+          parts
+        });
+      });
+
+      return { out, timed };
+
+      function parseTimestampToSec(ts){
+        const m = ts.match(/^\[(\d{2}):(\d{2})\.(\d{3})\]$/);
+        if(!m) return null;
+        return Number(m[1])*60 + Number(m[2]) + Number(m[3])/1000;
+      }
+
+      // timestamp 后的单位：英文单词 / 其他单字
+      function extractUnit(s){
+        if(!s) return { unit:"", len:0 };
+        const ch0 = s[0];
+        if(isAsciiLetter(ch0)){
+          let j=0;
+          while(j < s.length){
+            const c = s[j];
+            if(isAsciiLetter(c)){ j++; continue; }
+            if(c==="'" && j+1<s.length && isAsciiLetter(s[j+1]) && j-1>=0 && isAsciiLetter(s[j-1])){ j++; continue; }
+            break;
+          }
+          return { unit: s.slice(0,j), len: j };
+        }
+        return { unit: ch0, len: 1 };
+      }
+    }
+
+    // render a specific line index into a container; return spans with timeSec
+    function renderLine(container, idx){
+      container.innerHTML = "";
+      const model = lines[idx];
+      const text = model?.text || "";
+
+      container.classList.remove("cn","other");
+      container.classList.add(detectLineClass(text));
+
+      const spans = [];
+      if(!model){
+        return { spans, startTime:null, endTime:null };
+      }
+
+      for(const part of model.parts){
+        const s = part.s;
+        const t = part.t;
+
+        // part might be multiple chars (english word) -> each char gets same time (strict to krk unit)
+        for(let k=0;k<s.length;k++){
+          const ch = s[k];
+          const el = document.createElement("span");
+          el.className = "ch";
+          el.textContent = (ch === " ") ? "\u00A0" : ch;
+          container.appendChild(el);
+          spans.push({ el, timeSec: t }); // can be null
+        }
+      }
+
+      return { spans, startTime: model.startTime, endTime: model.endTime };
+    }
+
+    function paintByTime(rendered, curSec){
+      // ✅ 在“原本白字”的基础上：唱到的单位变蓝（played class）
+      for(const it of rendered.spans){
+        const t = it.timeSec;
+        if(t !== null && t <= curSec) it.el.classList.add("played");
+        else it.el.classList.remove("played");
+      }
+    }
+
+    function clearPlayed(rendered){
+      for(const it of rendered.spans) it.el.classList.remove("played");
+    }
+
+    // ========= Audio cover palette (MP3+FLAC cover only) =========
+    async function parseAudioMetaCover(file){
+      const nameLower = (file.name||"").toLowerCase();
+      const type = file.type || "";
+      const isMp3 = (type === "audio/mpeg") || nameLower.endsWith(".mp3");
+      const isFlac = (type === "audio/flac") || nameLower.endsWith(".flac");
+
+      const buf = await file.arrayBuffer();
+      const u8 = new Uint8Array(buf);
+
+      if(isMp3) return { coverBlob: parseID3Cover(u8) };
+      if(isFlac) return { coverBlob: parseFLACCover(u8) };
+      return { coverBlob: null };
+
+      function parseID3Cover(u8){
+        if(!(u8[0]===0x49 && u8[1]===0x44 && u8[2]===0x33)) return null;
+        const verMajor = u8[3];
+        const flags = u8[5];
+        const tagSize = synchsafeToInt(u8[6],u8[7],u8[8],u8[9]);
+        let offset = 10;
+
+        const hasExt = (flags & 0x40) !== 0;
+        if(hasExt){
+          const extSize = (verMajor === 4)
+            ? synchsafeToInt(u8[offset],u8[offset+1],u8[offset+2],u8[offset+3])
+            : readU32BE(u8, offset);
+          offset += extSize;
+        }
+
+        const end = Math.min(u8.length, 10 + tagSize);
+
+        while(offset + 10 <= end){
+          const id = String.fromCharCode(u8[offset],u8[offset+1],u8[offset+2],u8[offset+3]);
+          if(!/^[A-Z0-9]{4}$/.test(id)) break;
+
+          const size = (verMajor === 4)
+            ? synchsafeToInt(u8[offset+4],u8[offset+5],u8[offset+6],u8[offset+7])
+            : readU32BE(u8, offset+4);
+
+          const dataOff = offset + 10;
+          const dataEnd = dataOff + size;
+          if(size <= 0 || dataEnd > end) break;
+
+          if(id === "APIC"){
+            const frame = u8.slice(dataOff, dataEnd);
+            const blob = decodeApicFrame(frame);
+            if(blob) return blob;
+          }
+          offset = dataEnd;
+        }
+        return null;
+
+        function readU32BE(arr, off){
+          return (arr[off]<<24) | (arr[off+1]<<16) | (arr[off+2]<<8) | (arr[off+3]);
+        }
+        function synchsafeToInt(b0,b1,b2,b3){
+          return ((b0 & 0x7f) << 21) | ((b1 & 0x7f) << 14) | ((b2 & 0x7f) << 7) | (b3 & 0x7f);
+        }
+        function decodeApicFrame(frame){
+          if(frame.length < 10) return null;
+          const enc = frame[0];
+          let i = 1;
+          while(i < frame.length && frame[i] !== 0) i++;
+          const mime = new TextDecoder("iso-8859-1").decode(frame.slice(1,i)) || "image/jpeg";
+          i++; if(i >= frame.length) return null;
+          i++; // picType
+          if(enc === 1 || enc === 2){
+            while(i + 1 < frame.length && !(frame[i]===0 && frame[i+1]===0)) i += 2;
+            i += 2;
+          }else{
+            while(i < frame.length && frame[i] !== 0) i++;
+            i++;
+          }
+          if(i >= frame.length) return null;
+          return new Blob([frame.slice(i)], { type: mime });
+        }
+      }
+
+      function parseFLACCover(u8){
+        if(!(u8[0]===0x66 && u8[1]===0x4C && u8[2]===0x61 && u8[3]===0x43)) return null;
+        let offset = 4;
+        while(offset + 4 <= u8.length){
+          const header = u8[offset];
+          const isLast = (header & 0x80) !== 0;
+          const type = header & 0x7F;
+          const len = (u8[offset+1]<<16) | (u8[offset+2]<<8) | (u8[offset+3]);
+          offset += 4;
+          if(offset + len > u8.length) break;
+          if(type === 6){
+            const block = u8.slice(offset, offset + len);
+            const blob = parseFlacPicture(block);
+            if(blob) return blob;
+          }
+          offset += len;
+          if(isLast) break;
+        }
+        return null;
+
+        function readU32BE(arr, off){
+          return (arr[off]<<24) | (arr[off+1]<<16) | (arr[off+2]<<8) | (arr[off+3]);
+        }
+        function parseFlacPicture(block){
+          let p=0;
+          if(block.length < 32) return null;
+          p += 4; // picType
+          const mimeLen = readU32BE(block, p); p += 4;
+          if(p + mimeLen > block.length) return null;
+          const mime = new TextDecoder("utf-8").decode(block.slice(p, p + mimeLen)) || "image/jpeg";
+          p += mimeLen;
+          const descLen = readU32BE(block, p); p += 4;
+          if(p + descLen > block.length) return null;
+          p += descLen;
+          p += 16; // w,h,depth,colors
+          if(p + 4 > block.length) return null;
+          const dataLen = readU32BE(block, p); p += 4;
+          if(p + dataLen > block.length) return null;
+          return new Blob([block.slice(p, p + dataLen)], { type: mime });
+        }
+      }
+    }
+
+    async function applyCoverPalette(coverBlob){
+      if(!coverBlob){
+        bgFlow.style.display = "block";
+        setPalette(["#2a6cff","#ff3ea5","#21d07a"]);
+        return;
+      }
+      const img = new Image();
+      img.decoding="async";
+      img.src = URL.createObjectURL(coverBlob);
+      await img.decode().catch(()=>{});
+      setPalette(extractPalette(img));
+      bgFlow.style.display = "block";
+    }
+
+    function extractPalette(img){
+      const c=document.createElement("canvas");
+      const w=64,h=64;
+      c.width=w; c.height=h;
+      const cx=c.getContext("2d",{willReadFrequently:true});
+      cx.drawImage(img,0,0,w,h);
+      const data=cx.getImageData(0,0,w,h).data;
+
+      const samples=[];
+      for(let i=0;i<data.length;i+=4){
+        const r=data[i],g=data[i+1],b=data[i+2],a=data[i+3];
+        if(a<200) continue;
+        const {h:hh,s,v} = rgb2hsv(r,g,b);
+        if(v<0.18 || s<0.22) continue;
+        samples.push({r,g,b,h:hh,s,v});
+      }
+      if(samples.length < 30) return ["#2a6cff","#ff3ea5","#21d07a"];
+
+      const buckets=new Array(12).fill(0).map(()=>[]);
+      for(const p of samples) buckets[Math.floor(p.h/30)%12].push(p);
+
+      const picks=[];
+      for(const b of buckets){
+        if(!b.length) continue;
+        b.sort((a,b)=> (b.s*b.v)-(a.s*a.v));
+        picks.push(b[0]);
+      }
+      picks.sort((a,b)=> (b.s*b.v)-(a.s*a.v));
+
+      const chosen=[];
+      for(const p of picks){
+        if(!chosen.length){ chosen.push(p); continue; }
+        if(chosen.every(q => hueDist(p.h,q.h) > 35)) chosen.push(p);
+        if(chosen.length>=3) break;
+      }
+      while(chosen.length<3) chosen.push(picks[chosen.length]||picks[0]);
+
+      return chosen.slice(0,3).map(p=>rgbToHex(p.r,p.g,p.b));
+
+      function rgbToHex(r,g,b){ return "#" + [r,g,b].map(x=>x.toString(16).padStart(2,"0")).join(""); }
+      function hueDist(a,b){ const d=Math.abs(a-b); return Math.min(d,360-d); }
+      function rgb2hsv(r,g,b){
+        r/=255; g/=255; b/=255;
+        const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
+        let h=0;
+        if(d===0) h=0;
+        else if(max===r) h=((g-b)/d)%6;
+        else if(max===g) h=(b-r)/d+2;
+        else h=(r-g)/d+4;
+        h=Math.round(h*60); if(h<0) h+=360;
+        const s=max===0?0:d/max;
+        return {h,s,v:max};
+      }
+    }
+
+    // ========= Two-line fixed KTV logic (strict coloring) =========
+    function updateStartEnabled(){
+      btnStart.disabled = !(audioFile && krkText);
+    }
+
+    function findSlotByTime(cur){
+      if(timedIdxs.length === 0) return 0;
+      let best = 0;
+      for(let k=0;k<timedIdxs.length;k++){
+        const idx = timedIdxs[k];
+        const st = lines[idx].startTime;
+        if(st !== null && st <= cur) best = k;
+        else break;
+      }
+      return best;
+    }
+
+    // rendered data for top/bottom
+    let renderedTop = { spans:[], startTime:null, endTime:null };
+    let renderedBot = { spans:[], startTime:null, endTime:null };
+
+    function ensureLoadedForSlot(s){
+      const idxCur = timedIdxs[s] ?? -1;
+      const idxNext = timedIdxs[s + 1] ?? -1;
+      const topSinging = (s % 2 === 0);
+
+      if(topSinging){
+        if(topIdx !== idxCur){
+          renderedTop = renderLine(topLine, idxCur);
+          topIdx = idxCur;
+        }
+        if(botIdx !== idxNext){
+          renderedBot = renderLine(bottomLine, idxNext);
+          botIdx = idxNext;
+        }
+        // 预告行：不变色
+        clearPlayed(renderedBot);
+      }else{
+        if(botIdx !== idxCur){
+          renderedBot = renderLine(bottomLine, idxCur);
+          botIdx = idxCur;
+        }
+        if(topIdx !== idxNext){
+          renderedTop = renderLine(topLine, idxNext);
+          topIdx = idxNext;
+        }
+        clearPlayed(renderedTop);
+      }
+    }
+
+    function tick(){
+      const cur = elAudio.currentTime || 0;
+
+      if(timedIdxs.length === 0){
+        if(topIdx !== 0){ renderedTop = renderLine(topLine, 0); topIdx = 0; }
+        if(botIdx !== 1){ renderedBot = renderLine(bottomLine, 1); botIdx = 1; }
+        setPrep(prepTop, dotsTop, false, 0);
+        setPrep(prepBottom, dotsBot, false, 0);
+        return;
+      }
+
+      slot = findSlotByTime(cur);
+      ensureLoadedForSlot(slot);
+
+      const idxCur = timedIdxs[slot] ?? -1;
+      const idxNext = timedIdxs[slot + 1] ?? -1;
+      const topSinging = (slot % 2 === 0);
+
+      // ✅ 严格按每个 .krk 时间戳变色（不是 width 裁切）
+      if(topSinging){
+        paintByTime(renderedTop, cur);
+        clearPlayed(renderedBot);
+      }else{
+        paintByTime(renderedBot, cur);
+        clearPlayed(renderedTop);
+      }
+
+      // 提前开唱 3 点：对“预告行”生效（下一句开始前 2.4s）
+      if(idxNext !== -1){
+        const nextSt = lines[idxNext].startTime;
+        if(nextSt !== null){
+  
+          const prevEnd = lines[idxCur]?.endTime ?? null;
+  
+          const gapEnough =
+            prevEnd !== null &&
+            nextSt !== null &&
+            (nextSt - prevEnd) >= 5;
+
+          const remain = nextSt - cur;
+
+          const show =
+            gapEnough &&
+            remain > 0 &&
+            remain <= 2.4;
+          let onCount = 0;
+          if(show){
+            if(remain <= 0.8) onCount = 3;
+            else if(remain <= 1.6) onCount = 2;
+            else onCount = 1;
+          }
+          if(topSinging){
+            setPrep(prepBottom, dotsBot, show, onCount);
+            setPrep(prepTop, dotsTop, false, 0);
+          }else{
+            setPrep(prepTop, dotsTop, show, onCount);
+            setPrep(prepBottom, dotsBot, false, 0);
+          }
+        }else{
+          setPrep(prepTop, dotsTop, false, 0);
+          setPrep(prepBottom, dotsBot, false, 0);
+        }
+      }else{
+        setPrep(prepTop, dotsTop, false, 0);
+        setPrep(prepBottom, dotsBot, false, 0);
+      }
+    }
+
+    function startLoop(){
+      if(rafId) return;
+      const loop = ()=>{
+        tick();
+        rafId = requestAnimationFrame(loop);
+      };
+      rafId = requestAnimationFrame(loop);
+    }
+
+    // ========= Inputs =========
+    elAudioFile.addEventListener("change", async ()=>{
+      audioFile = elAudioFile.files?.[0] || null;
+      if(!audioFile){ elState.textContent = "待机"; updateStartEnabled(); return; }
+
+      elState.textContent = "解析音频…";
+      elAudio.src = URL.createObjectURL(audioFile);
+      elAudio.load();
+
+      // 无视频时：封面取色流光
+      if(!videoFile){
+        const meta = await parseAudioMetaCover(audioFile).catch(()=>({coverBlob:null}));
+        await applyCoverPalette(meta.coverBlob);
+      }
+
+      await waitAudioReady().catch(()=>{});
+      elState.textContent = "音频就绪";
+      updateStartEnabled();
+
+      function waitAudioReady(){
+        return new Promise((resolve)=>{
+          const done=()=>{
+            if(Number.isFinite(elAudio.duration) && elAudio.duration > 0){
+              elAudio.removeEventListener("loadedmetadata", done);
+              elAudio.removeEventListener("durationchange", done);
+              resolve();
+            }
+          };
+          elAudio.addEventListener("loadedmetadata", done);
+          elAudio.addEventListener("durationchange", done);
+          done();
+        });
+      }
+    });
+
+    elKrkFile.addEventListener("change", async ()=>{
+      const f = elKrkFile.files?.[0] || null;
+      if(!f){ krkText=""; updateStartEnabled(); return; }
+      krkText = await f.text();
+
+      const parsed = parseKrkStrict(krkText);
+      lines = parsed.out;
+      timedIdxs = parsed.timed;
+
+      // 初始化显示（固定两行）
+      topIdx = -1; botIdx = -1;
+      renderedTop = renderLine(topLine, 0);
+      renderedBot = renderLine(bottomLine, 1);
+      clearPlayed(renderedTop);
+      clearPlayed(renderedBot);
+
+      elState.textContent = "歌词就绪";
+      updateStartEnabled();
+    });
+
+    elVideoFile.addEventListener("change", async ()=>{
+      videoFile = elVideoFile.files?.[0] || null;
+
+      if(videoFile){
+        bgVideo.src = URL.createObjectURL(videoFile);
+        bgVideo.loop = true;
+        bgVideo.muted = true;
+        bgVideo.playsInline = true;
+        bgVideo.style.display = "block";
+        bgFlow.style.display = "none";
+        elState.textContent = "视频背景已加载";
+      }else{
+        bgVideo.pause();
+        bgVideo.removeAttribute("src");
+        bgVideo.load();
+        bgVideo.style.display = "none";
+        bgFlow.style.display = "block";
+        elState.textContent = "已切回流光背景";
+      }
+      updateStartEnabled();
+    });
+
+    btnStart.addEventListener("click", async ()=>{
+      if(!(audioFile && krkText)) return;
+
+      elGate.style.display = "none";
+
+      if(videoFile){
+        try{ await bgVideo.play(); }catch(e){}
+      }else{
+        bgFlow.style.display = "block";
+      }
+
+      elAudio.currentTime = 0;
+      try{
+        await elAudio.play();
+      }catch(e){
+        console.warn("Audio play blocked, click page to resume.", e);
+      }
+
+      tick();
+      startLoop();
+    });
+
+    // 隐藏功能：空格暂停/继续
+    window.addEventListener("keydown", (e)=>{
+      if(e.key === " "){
+        e.preventDefault();
+        if(elGate.style.display === "none"){
+          if(elAudio.paused){
+            elAudio.play().catch(()=>{});
+            if(videoFile) bgVideo.play().catch(()=>{});
+          }else{
+            elAudio.pause();
+            if(videoFile) bgVideo.pause();
+          }
+        }
+      }
+    });
+
+    // 初始背景
+    bgFlow.style.display = "block";
+    setPalette(["#2a6cff","#ff3ea5","#21d07a"]);
+
+    // 初始提示
+    topLine.textContent = "请上传音频和 .krk";
+    bottomLine.textContent = "";
+  </script>
+</body>
+</html>
