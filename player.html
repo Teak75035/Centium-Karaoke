@@ -9,16 +9,13 @@
       --c1:#2a6cff;
       --c2:#ff3ea5;
       --c3:#21d07a;
-
       --text: rgba(255,255,255,.94);
       --muted: rgba(255,255,255,.74);
       --glass: rgba(255,255,255,.08);
       --stroke: rgba(255,255,255,.16);
       --shadow: 0 18px 70px rgba(0,0,0,.38);
-
       --radius: 22px;
     }
-
     *{ box-sizing:border-box; }
     html,body{ height:100%; }
     body{
@@ -28,7 +25,6 @@
       background:#0a0c12;
       overflow:hidden; /* ✅ 不让浏览器整体滚动 */
     }
-
     /* ✅ 动态流光背景（封面取色） */
     .bg{ position:fixed; inset:0; z-index:-2; overflow:hidden; }
     .bg::before{
@@ -62,7 +58,6 @@
       0%{ transform: translate(-6%, -4%) scale(1.02) rotate(-4deg); }
       100%{ transform: translate(6%, 5%) scale(1.05) rotate(4deg); }
     }
-
     /* ✅ 主布局：左侧封面/信息/控制，右侧歌词 */
     .app{
       height:100%;
@@ -73,7 +68,6 @@
       max-width: 1200px;
       margin: 0 auto;
     }
-
     .panel{
       background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.05));
       border: 1px solid var(--stroke);
@@ -81,7 +75,6 @@
       box-shadow: var(--shadow);
       backdrop-filter: blur(14px);
     }
-
     .left{
       padding: 14px;
       display:flex;
@@ -89,7 +82,6 @@
       gap: 12px;
       min-height: 0;
     }
-
     .cover{
       width:100%;
       aspect-ratio: 1 / 1;
@@ -108,7 +100,6 @@
       font-weight: 800;
       letter-spacing:.08em;
     }
-
     /* ✅ 标题/艺人：封面下方居左分行 */
     .meta{
       padding: 2px 2px 0;
@@ -136,7 +127,6 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-
     .inputs{
       display:flex;
       flex-wrap: wrap;
@@ -164,7 +154,6 @@
       background: rgba(0,0,0,.18);
       color: rgba(255,255,255,.75);
     }
-
     /* ✅ 控制区：按键 + 进度条 */
     .controls{
       margin-top: 4px;
@@ -193,7 +182,6 @@
     }
     .btn:active{ transform: translateY(1px) scale(.99); filter: brightness(.95); }
     .btn[disabled]{ opacity:.45; cursor:not-allowed; }
-
     .bar{
       flex:1;
       height: 50px;
@@ -233,7 +221,6 @@
       box-shadow: 0 10px 22px rgba(0,0,0,.25);
       cursor:pointer;
     }
-
     /* ✅ 右侧歌词 */
     .right{
       padding: 14px;
@@ -241,7 +228,6 @@
       flex-direction: column;
       min-height: 0;
     }
-
     .lyrics{
       flex:1;
       overflow:auto;
@@ -249,14 +235,12 @@
       border-radius: 18px;
       background: rgba(0,0,0,.16);
       border: 1px solid rgba(255,255,255,.12);
-
       scroll-behavior: smooth;
       /* ✅ 隐藏滚动条（多浏览器） */
       scrollbar-width: none;          /* Firefox */
       -ms-overflow-style: none;       /* IE/Edge old */
     }
     .lyrics::-webkit-scrollbar{ display:none; } /* Chrome/Safari */
-
     .line{
       font-size: 24px;
       line-height: 1.9;
@@ -278,7 +262,6 @@
       padding: 0 1px;
     }
     .ch.played{ opacity: 1; } /* 已播放 100% */
-
     .hint{
       margin-top: 10px;
       font-size: 12px;
@@ -286,7 +269,6 @@
       line-height: 1.6;
       padding: 0 2px;
     }
-
     /* 底部频谱 */
     .vizBar{
       position: fixed;
@@ -304,7 +286,6 @@
       border: 1px solid rgba(255,255,255,.12);
       background: rgba(255,255,255,.06);
     }
-
     @media (max-width: 920px){
       body{ overflow:auto; } /* 小屏允许整体滚动更实用 */
       .app{
@@ -317,7 +298,6 @@
 </head>
 <body>
   <div class="bg" aria-hidden="true"></div>
-
   <div class="app">
     <!-- Left -->
     <section class="panel left">
@@ -325,29 +305,22 @@
         <img id="coverImg" alt="cover" style="display:none;">
         <div class="fallback" id="coverFallback">NO COVER</div>
       </div>
-
       <div class="meta">
         <h1 class="title" id="title">未加载音频</h1>
         <p class="artist" id="artist">请上传音频以解析信息</p>
       </div>
-
       <div class="inputs">
+        <!-- ✅ 移除KRK上传按钮，仅保留音频上传 -->
         <label>
           <span>上传音频</span>
-          <span class="tag">audio/*</span>
-          <input id="audioFile" type="file" accept="audio/*" />
+          <span class="tag">MP3/FLAC</span>
+          <input id="audioFile" type="file" accept=".mp3,.flac,audio/mpeg,audio/flac" />
         </label>
-
-        <label>
-          <span>上传歌词</span>
-          <span class="tag">.krk</span>
-          <input id="krkFile" type="file" accept=".krk,text/plain" />
-        </label>
-
         <span class="tag" id="infoTag">时长：--:--</span>
         <span class="tag" id="stateTag">待机</span>
+        <!-- ✅ 新增KRK状态标签 -->
+        <span class="tag" id="krkTag">KRK：未解析</span>
       </div>
-
       <div class="controls">
         <div class="ctrlRow">
           <button class="btn" id="btnPlay" disabled title="播放/暂停 (Space)">
@@ -358,69 +331,56 @@
               <path d="M7 5h4v14H7V5zm6 0h4v14h-4V5z" fill="currentColor"/>
             </svg>
           </button>
-
           <div class="bar">
             <span class="time" id="tCur">00:00</span>
             <input id="seek" type="range" min="0" max="1000" value="0" />
             <span class="time" id="tDur">00:00</span>
           </div>
         </div>
-
         <div class="hint">
           空格：播放/暂停。拖动进度条：跳转。<br/>
-          歌词：未播放 70% 透明度，已播放 100%。正在播放的行会锁定在右侧中间高度。
+          歌词：未播放 70% 透明度，已播放 100%。正在播放的行会锁定在右侧中间高度。<br/>
+          自动从MP3(krk_data-TXXX)/FLAC(KRK_DATA)标签提取KRK歌词
         </div>
-
-        <audio id="audio" crossorigin="anonymous" style="width:100%; margin-top:6px; opacity:.92;" controls></audio>
+        <audio id="audio" crossorigin="anonymous" style="width:100%; margin-top:6px; opacity:.92;" controls>
       </div>
     </section>
-
     <!-- Right -->
     <section class="panel right">
       <div class="lyrics" id="lyrics"></div>
     </section>
   </div>
-
   <div class="vizBar">
     <canvas id="viz"></canvas>
   </div>
-
   <script>
     // ========= DOM =========
     const elAudio = document.getElementById("audio");
     const elAudioFile = document.getElementById("audioFile");
-    const elKrkFile = document.getElementById("krkFile");
-
     const elTitle = document.getElementById("title");
     const elArtist = document.getElementById("artist");
     const elInfoTag = document.getElementById("infoTag");
     const elStateTag = document.getElementById("stateTag");
-
+    // ✅ 新增KRK状态标签DOM
+    const elKrkTag = document.getElementById("krkTag");
     const elCoverImg = document.getElementById("coverImg");
     const elCoverFallback = document.getElementById("coverFallback");
-
     const btnPlay = document.getElementById("btnPlay");
     const iconPlay = document.getElementById("iconPlay");
     const iconPause = document.getElementById("iconPause");
-
     const seek = document.getElementById("seek");
     const tCur = document.getElementById("tCur");
     const tDur = document.getElementById("tDur");
-
     const elLyrics = document.getElementById("lyrics");
-
     const canvas = document.getElementById("viz");
     const vctx = canvas.getContext("2d");
-
     // ========= Player State =========
     let hasAudio = false;
     let hasLyrics = false;
-
     // lines: [{ elLine, chars:[{el, timeSec|null}] }]
     let lines = [];
     let flatTimed = []; // { lineIdx, timeSec, elChar, elLine }
     let lastActiveLine = -1;
-
     // ========= Helpers =========
     function pad2(n){ return String(n).padStart(2,"0"); }
     function mmss(sec){
@@ -430,13 +390,11 @@
       return `${pad2(m)}:${pad2(s)}`;
     }
     function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
-
     function parseTimestampToSec(ts){
       const m = ts.match(/^\[(\d{2}):(\d{2})\.(\d{3})\]$/);
       if(!m) return null;
       return Number(m[1])*60 + Number(m[2]) + Number(m[3])/1000;
     }
-
     function extractUnit(text){
       if(!text) return { unit:"", len:0 };
       const isAsciiLetter = (c)=> /^[A-Za-z]$/.test(c);
@@ -453,36 +411,30 @@
       }
       return { unit:ch0, len:1 };
     }
-
-    // 解析：MP3(ID3v2): TIT2/TPE1/APIC
-    //      FLAC: VORBIS_COMMENT(TITLE/ARTIST) + PICTURE(封面)
-    // 兜底：文件名/未知艺术家/无封面
+    // 解析：MP3(ID3v2): TIT2/TPE1/APIC/TXXX(krk_data)
+    //      FLAC: VORBIS_COMMENT(TITLE/ARTIST/KRK_DATA) + PICTURE(封面)
+    // 兜底：文件名/未知艺术家/无封面/无KRK
     async function parseAudioMeta(file){
     const fallback = {
         title: file.name.replace(/\.[^/.]+$/,""),
         artist: "未知艺术家",
-        coverBlob: null
+        coverBlob: null,
+        krkText: null // ✅ 新增KRK歌词字段
     };
-
     const nameLower = (file.name || "").toLowerCase();
     const type = file.type || "";
-
     const isMp3 = (type === "audio/mpeg") || nameLower.endsWith(".mp3");
     const isFlac = (type === "audio/flac") || nameLower.endsWith(".flac");
-
     const buf = await file.arrayBuffer();
     const u8 = new Uint8Array(buf);
-
     if(isMp3){
         return parseID3v2(u8, fallback);
     }
     if(isFlac){
         return parseFLAC(u8, fallback);
     }
-
-    // 其它格式：浏览器可能也能播，但这里先不做复杂容器解析
+    // 其它格式：仅兜底，不处理
     return fallback;
-
     // ===== MP3 / ID3v2 =====
     function parseID3v2(u8, fallback){
         if(!(u8[0]===0x49 && u8[1]===0x44 && u8[2]===0x33)) return fallback; // "ID3"
@@ -490,7 +442,6 @@
         const flags = u8[5];
         const tagSize = synchsafeToInt(u8[6],u8[7],u8[8],u8[9]);
         let offset = 10;
-
         // extended header
         const hasExt = (flags & 0x40) !== 0;
         if(hasExt){
@@ -499,33 +450,31 @@
             : readU32BE(u8, offset);
         offset += extSize;
         }
-
-        let title=null, artist=null, coverBlob=null;
+        let title=null, artist=null, coverBlob=null, krkText=null; // ✅ 新增krkText
         const end = Math.min(u8.length, 10 + tagSize);
-
         while(offset + 10 <= end){
         const id = String.fromCharCode(u8[offset],u8[offset+1],u8[offset+2],u8[offset+3]);
         if(!/^[A-Z0-9]{4}$/.test(id)) break;
-
         const size = (verMajor === 4)
             ? synchsafeToInt(u8[offset+4],u8[offset+5],u8[offset+6],u8[offset+7])
             : readU32BE(u8, offset+4);
-
         const dataOff = offset + 10;
         const dataEnd = dataOff + size;
         if(size <= 0 || dataEnd > end) break;
-
         const frame = u8.slice(dataOff, dataEnd);
-
         if(id==="TIT2") title = decodeTextFrame(frame) || title;
         else if(id==="TPE1") artist = decodeTextFrame(frame) || artist;
         else if(id==="APIC" && !coverBlob) coverBlob = decodeApicFrame(frame);
-
+        // ✅ 解析TXXX标签，提取krk_data内容
+        else if(id==="TXXX" && !krkText) krkText = decodeTXXXFrame(frame);
         offset = dataEnd;
         }
-
-        return { title: title||fallback.title, artist: artist||fallback.artist, coverBlob: coverBlob||null };
-
+        return { 
+            title: title||fallback.title, 
+            artist: artist||fallback.artist, 
+            coverBlob: coverBlob||null,
+            krkText: krkText||null // 返回KRK歌词
+        };
         function readU32BE(arr, off){
         return (arr[off]<<24) | (arr[off+1]<<16) | (arr[off+2]<<8) | (arr[off+3]);
         }
@@ -546,13 +495,11 @@
         if(frame.length < 10) return null;
         const enc = frame[0];
         let i = 1;
-
         while(i < frame.length && frame[i] !== 0) i++;
         const mime = new TextDecoder("iso-8859-1").decode(frame.slice(1,i)) || "image/jpeg";
         i++; // 0
         if(i >= frame.length) return null;
         i++; // picType
-
         if(enc === 1 || enc === 2){
             while(i + 1 < frame.length && !(frame[i]===0 && frame[i+1]===0)) i += 2;
             i += 2;
@@ -560,22 +507,36 @@
             while(i < frame.length && frame[i] !== 0) i++;
             i++;
         }
-
         if(i >= frame.length) return null;
         return new Blob([frame.slice(i)], { type: mime });
         }
+        // ✅ 新增：解析TXXX帧，提取krk_data的内容
+        function decodeTXXXFrame(frame){
+            if(frame.length < 2) return null;
+            const enc = frame[0];
+            let data = frame.slice(1);
+            // TXXX结构：[描述符(utf)][0分隔符][内容(utf)]
+            let sepIdx = -1;
+            if(enc === 3){ // UTF-8
+                sepIdx = data.findIndex(byte => byte === 0);
+                if(sepIdx === -1) return null;
+                const desc = new TextDecoder("utf-8").decode(data.slice(0, sepIdx)).replace(/\0/g,"").trim();
+                if(desc !== "krk_data") return null; // 仅处理krk_data键
+                const content = new TextDecoder("utf-8").decode(data.slice(sepIdx+1)).replace(/\0/g,"").trim();
+                return content;
+            }
+            return null; // 仅支持UTF-8编码的TXXX
+        }
     }
-
     // ===== FLAC =====
     function parseFLAC(u8, fallback){
         // "fLaC"
         if(!(u8[0]===0x66 && u8[1]===0x4C && u8[2]===0x61 && u8[3]===0x43)) return fallback;
-
         let offset = 4;
         let title = null;
         let artist = null;
         let coverBlob = null;
-
+        let krkText = null; // ✅ 新增krkText
         // metadata blocks
         while(offset + 4 <= u8.length){
         const header = u8[offset];
@@ -583,33 +544,32 @@
         const type = header & 0x7F;
         const len = (u8[offset+1]<<16) | (u8[offset+2]<<8) | (u8[offset+3]);
         offset += 4;
-
         if(offset + len > u8.length) break;
-
         const block = u8.slice(offset, offset + len);
-
         if(type === 4){ // VORBIS_COMMENT
             const tags = parseVorbisComment(block);
             title = tags.TITLE?.[0] || title;
-            // FLAC 常见 ARTIST / ALBUMARTIST，你要哪个都行，这里优先 ARTIST
             artist = tags.ARTIST?.[0] || tags.ALBUMARTIST?.[0] || artist;
+            // ✅ 提取FLAC的KRK_DATA自定义标签
+            krkText = tags.KRK_DATA?.[0] || null;
         }else if(type === 6 && !coverBlob){ // PICTURE
             coverBlob = parseFlacPicture(block) || coverBlob;
         }
-
         offset += len;
         if(isLast) break;
         }
-
-        return { title: title || fallback.title, artist: artist || fallback.artist, coverBlob: coverBlob || null };
-
+        return { 
+            title: title || fallback.title, 
+            artist: artist || fallback.artist, 
+            coverBlob: coverBlob || null,
+            krkText: krkText || null // 返回KRK歌词
+        };
         function readU32BE(arr, off){
         return (arr[off]<<24) | (arr[off+1]<<16) | (arr[off+2]<<8) | (arr[off+3]);
         }
         function readU32LE(arr, off){
         return (arr[off]) | (arr[off+1]<<8) | (arr[off+2]<<16) | (arr[off+3]<<24);
         }
-
         function parseVorbisComment(block){
         // vendor_length (LE32) + vendor_string + user_comment_list_length (LE32)
         // then repeated: length(LE32) + "KEY=VALUE" (UTF-8)
@@ -619,7 +579,6 @@
         p += vendorLen;
         if(p + 4 > block.length) return {};
         const count = readU32LE(block, p); p += 4;
-
         const out = {};
         for(let i=0;i<count;i++){
             if(p + 4 > block.length) break;
@@ -636,7 +595,6 @@
         }
         return out;
         }
-
         function parseFlacPicture(block){
         // FLAC PICTURE:
         // 32BE picType
@@ -646,24 +604,19 @@
         // 32BE dataLen + data
         let p = 0;
         if(block.length < 32) return null;
-
         p += 4; // picType (ignore)
         const mimeLen = readU32BE(block, p); p += 4;
         if(p + mimeLen > block.length) return null;
         const mime = new TextDecoder("utf-8").decode(block.slice(p, p + mimeLen)) || "image/jpeg";
         p += mimeLen;
-
         const descLen = readU32BE(block, p); p += 4;
         if(p + descLen > block.length) return null;
         p += descLen;
-
         // skip: width,height,depth,colors
         p += 16;
         if(p + 4 > block.length) return null;
-
         const dataLen = readU32BE(block, p); p += 4;
         if(p + dataLen > block.length) return null;
-
         const img = block.slice(p, p + dataLen);
         return new Blob([img], { type: mime });
         }
@@ -684,14 +637,12 @@
       await elCoverImg.decode().catch(()=>{});
       setPalette(extractPalette(elCoverImg));
     }
-
     function setPalette(cols){
       const r = document.documentElement;
       r.style.setProperty("--c1", cols[0] || "#2a6cff");
       r.style.setProperty("--c2", cols[1] || "#ff3ea5");
       r.style.setProperty("--c3", cols[2] || "#21d07a");
     }
-
     function extractPalette(img){
       const c = document.createElement("canvas");
       const w=64,h=64;
@@ -699,7 +650,6 @@
       const cx = c.getContext("2d",{willReadFrequently:true});
       cx.drawImage(img,0,0,w,h);
       const data = cx.getImageData(0,0,w,h).data;
-
       const samples=[];
       for(let i=0;i<data.length;i+=4){
         const r=data[i], g=data[i+1], b=data[i+2], a=data[i+3];
@@ -709,7 +659,6 @@
         samples.push({r,g,b,h:hh,s,v});
       }
       if(samples.length < 30) return ["#2a6cff","#ff3ea5","#21d07a"];
-
       const buckets = new Array(12).fill(0).map(()=>[]);
       for(const p of samples){
         buckets[Math.floor(p.h/30)%12].push(p);
@@ -729,7 +678,6 @@
       }
       while(chosen.length<3) chosen.push(picks[chosen.length]||picks[0]);
       return chosen.slice(0,3).map(p=>rgbToHex(p.r,p.g,p.b));
-
       function rgbToHex(r,g,b){ return "#" + [r,g,b].map(x=>x.toString(16).padStart(2,"0")).join(""); }
       function hueDist(a,b){ const d=Math.abs(a-b); return Math.min(d,360-d); }
       function rgb2hsv(r,g,b){
@@ -745,21 +693,17 @@
         return {h,s,v:max};
       }
     }
-
     // ========= Parse .krk =========
     function parseKrk(text){
       const raw = (text||"").replace(/\r\n/g,"\n").split("\n");
       lines=[]; flatTimed=[]; lastActiveLine=-1;
       elLyrics.innerHTML="";
-
       raw.forEach((lineText,lineIdx)=>{
         const elLine=document.createElement("div");
         elLine.className="line";
         elLine.dataset.line=String(lineIdx);
-
         const chars=[];
         let i=0;
-
         while(i < lineText.length){
           if(lineText[i]==="[" && i+10 < lineText.length){
             const maybe = lineText.slice(i,i+11);
@@ -789,18 +733,19 @@
           chars.push({el:elCh,timeSec:null});
           i++;
         }
-
         elLyrics.appendChild(elLine);
         lines.push({elLine,chars});
       });
-
       flatTimed.sort((a,b)=>a.timeSec-b.timeSec);
       hasLyrics = lines.length > 0;
+      // ✅ 更新KRK状态标签
       if(!hasLyrics){
-        elLyrics.innerHTML = `<div class="line" style="opacity:.8;">未加载歌词</div>`;
+        elLyrics.innerHTML = `<div class="line" style="opacity:.8;">未提取到KRK歌词</div>`;
+        elKrkTag.textContent = "KRK：无";
+      }else{
+        elKrkTag.textContent = "KRK：已解析";
       }
     }
-
     // ========= Center-lock scrolling =========
     function centerLineInLyrics(lineEl){
       if(!lineEl) return;
@@ -808,11 +753,9 @@
       const targetTop = lineEl.offsetTop - (container.clientHeight/2) + (lineEl.clientHeight/2);
       container.scrollTop = clamp(targetTop, 0, Math.max(0, container.scrollHeight - container.clientHeight));
     }
-
     // ========= Playback update =========
     let rafTick=null;
     let seeking=false;
-
     function startLoop(){
       if(rafTick) return;
       const loop=()=>{
@@ -822,26 +765,20 @@
       };
       rafTick = requestAnimationFrame(loop);
     }
-
     function tick(){
       if(!hasAudio) return;
-
       const dur = elAudio.duration;
       const cur = elAudio.currentTime;
-
       if(Number.isFinite(dur)){
         tCur.textContent = mmss(cur);
         tDur.textContent = mmss(dur);
         elInfoTag.textContent = `时长：${mmss(dur)}`;
         if(!seeking) seek.value = String(Math.floor((cur/dur)*1000));
       }
-
       if(hasLyrics) updateLyricsByTime(cur);
     }
-
     function updateLyricsByTime(curSec){
       let activeLine=-1;
-
       for(const it of flatTimed){
         if(it.timeSec <= curSec){
           it.elChar.classList.add("played");
@@ -850,36 +787,29 @@
           it.elChar.classList.remove("played");
         }
       }
-
       if(activeLine !== -1 && activeLine !== lastActiveLine){
         if(lastActiveLine >= 0 && lines[lastActiveLine]) lines[lastActiveLine].elLine.classList.remove("active");
         const curLine = lines[activeLine]?.elLine;
         curLine?.classList.add("active");
         lastActiveLine = activeLine;
-
         // ✅ 锁定到中间
         centerLineInLyrics(curLine);
       }
     }
-
     // ========= WebAudio spectrum =========
     let audioCtx=null, analyser=null, sourceNode=null, freqData=null, audioGraphReady=false;
-
     function ensureAudioGraph(){
       if(audioGraphReady) return;
       audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 2048;
       analyser.smoothingTimeConstant = 0.86;
-
       sourceNode = audioCtx.createMediaElementSource(elAudio);
       sourceNode.connect(analyser);
       analyser.connect(audioCtx.destination);
-
       freqData = new Uint8Array(analyser.frequencyBinCount);
       audioGraphReady = true;
     }
-
     function resizeCanvas(){
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
@@ -887,24 +817,19 @@
       const h = Math.max(1, Math.floor(rect.height*dpr));
       if(canvas.width!==w || canvas.height!==h){ canvas.width=w; canvas.height=h; }
     }
-
     function drawViz(){
       resizeCanvas();
       const w=canvas.width,h=canvas.height;
       vctx.clearRect(0,0,w,h);
-
       vctx.fillStyle="rgba(255,255,255,.06)";
       vctx.fillRect(0,0,w,h);
-
       if(!analyser || !freqData) return;
-
       analyser.getByteFrequencyData(freqData);
       const bins = Math.min(freqData.length, 256);
       const barCount = 96;
       const step = Math.floor(bins / barCount) || 1;
       const gap = Math.max(1, Math.floor(w / (barCount * 12)));
       const barW = Math.max(2, Math.floor((w - gap * (barCount + 1)) / barCount));
-
       let x = gap;
       for(let i=0;i<barCount;i++){
         const idx=i*step;
@@ -912,10 +837,8 @@
         const end=Math.min(idx+step,bins);
         for(let j=idx;j<end;j++) v+=freqData[j];
         v/=(end-idx)||1;
-
         const barH=Math.max(2, Math.floor((v/255)*(h-12)));
         const y=h-barH;
-
         vctx.fillStyle="rgba(255,255,255,.92)";
         vctx.globalAlpha = 0.10 + 0.72*(v/255);
         vctx.fillRect(x,y,barW,barH);
@@ -923,39 +846,35 @@
       }
       vctx.globalAlpha=1;
     }
-
     function setPlayingUI(isPlaying){
       iconPlay.style.display = isPlaying ? "none" : "block";
       iconPause.style.display = isPlaying ? "block" : "none";
       elStateTag.textContent = isPlaying ? "播放中" : "暂停";
     }
-
     function canPlayNow(){ btnPlay.disabled = !hasAudio; }
-
     async function loadAudio(file){
       hasAudio=false;
+      hasLyrics=false;
       canPlayNow();
       setPlayingUI(false);
       elStateTag.textContent="解析中…";
-
+      elKrkTag.textContent = "KRK：解析中"; // ✅ 初始化KRK状态
       elAudio.src = URL.createObjectURL(file);
       elAudio.load();
-
+      // ✅ 解析元数据（含KRK歌词）
       const meta = await parseAudioMeta(file);
       elTitle.textContent = meta.title || file.name;
       elArtist.textContent = meta.artist || "未知艺术家";
       await setCoverFromBlob(meta.coverBlob);
-
       await waitAudioReady();
-
+      // ✅ 自动解析提取到的KRK歌词
+      parseKrk(meta.krkText || "");
       hasAudio=true;
       canPlayNow();
       elStateTag.textContent="就绪";
-
       ensureAudioGraph();
       drawViz();
       startLoop();
-
       function waitAudioReady(){
         return new Promise((resolve)=>{
           const done=()=>{
@@ -971,36 +890,21 @@
         });
       }
     }
-
-    async function loadKrk(file){
-      const text = await file.text();
-      parseKrk(text);
-      updateLyricsByTime(elAudio.currentTime || 0);
-      if(lastActiveLine >= 0) centerLineInLyrics(lines[lastActiveLine]?.elLine);
-    }
-
+    // ✅ 移除原loadKrk函数和KRK文件上传相关逻辑
     function togglePlay(){
       if(!hasAudio) return;
       if(audioCtx && audioCtx.state==="suspended") audioCtx.resume().catch(()=>{});
       if(elAudio.paused) elAudio.play().catch(()=>{});
       else elAudio.pause();
     }
-
     // ========= Events =========
     elAudioFile.addEventListener("change", async ()=>{
       const f = elAudioFile.files?.[0];
       if(!f) return;
       await loadAudio(f);
     });
-
-    elKrkFile.addEventListener("change", async ()=>{
-      const f = elKrkFile.files?.[0];
-      if(!f) return;
-      await loadKrk(f);
-    });
-
+    // ✅ 移除原KRK文件上传的change事件
     btnPlay.addEventListener("click", togglePlay);
-
     elAudio.addEventListener("play", ()=>{
       ensureAudioGraph();
       if(audioCtx && audioCtx.state==="suspended") audioCtx.resume().catch(()=>{});
@@ -1011,7 +915,6 @@
       setPlayingUI(false);
       elStateTag.textContent = "结束";
     });
-
     seek.addEventListener("input", ()=>{
       if(!hasAudio || !Number.isFinite(elAudio.duration)) return;
       seeking=true;
@@ -1027,14 +930,12 @@
       seeking=false;
       if(hasLyrics) updateLyricsByTime(elAudio.currentTime);
     });
-
     window.addEventListener("keydown", (e)=>{
       if(e.key===" "){
         e.preventDefault();
         togglePlay();
       }
     });
-
     // 初始
     parseKrk("");
     drawViz();

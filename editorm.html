@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Centium Karaoke 歌词编辑器</title>
+  <style>
+    :root{
+      --done:#111;
+      --prev:#1e9b3b;
+      --todo:#a0a0a0;
+      --curr:#2a6cff;
+      --bg:#f7f7f7;
+      --card:#fff;
+      --border:#e6e6e6;
+    }
+    body{margin:0;background:var(--bg);font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",Arial;color:#111;}
+    .wrap{max-width:1100px;margin:24px auto 88px;padding:0 16px;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.05);}
+    h2{margin:0 0 10px 0;font-size:16px;font-weight:800;}
+    textarea{width:100%;min-height:220px;resize:vertical;border-radius:12px;border:1px solid var(--border);padding:10px 12px;outline:none;font-size:14px;line-height:1.55;box-sizing:border-box;}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;}
+    button{border:1px solid var(--border);background:#111;color:#fff;border-radius:12px;padding:10px 12px;font-weight:800;cursor:pointer;}
+    button:disabled{opacity:.55;cursor:not-allowed;}
+    .ghost{background:#fff;color:#111;}
+    .hint{font-size:12px;color:#666;margin-top:8px;line-height:1.55;}
+    .status{font-size:12px;color:#333;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:#fff;}
+    #lyricsView{font-size:22px;line-height:1.85;word-break:break-word;user-select:none;padding:10px 6px;}
+    .ch{display:inline-block;padding:0 1px;color:var(--todo);transition:color .08s linear, outline-color .08s linear;border-radius:4px;}
+    .done{color:var(--done);}
+    .prev{color:var(--prev);}
+    .todo{color:var(--todo);}
+    .ch.curr{outline:2px solid var(--curr);outline-offset:2px;}
+    .wordwrap{display:inline-block;padding:0 1px;border-radius:4px;}
+    .wordwrap.curr{outline:2px solid var(--curr);outline-offset:2px;}
+    .k{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:#fff;color:#222;}
+    .vizBar{position:fixed;left:0;right:0;bottom:0;height:72px;background:rgba(255,255,255,.85);backdrop-filter:blur(10px);border-top:1px solid var(--border);display:flex;align-items:center;padding:8px 12px;box-sizing:border-box;z-index:999;}
+    #viz{width:100%;height:100%;border-radius:10px;border:1px solid var(--border);background:#fff;}
+    .dl{
+      display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;
+    }
+    .filehint{
+      font-size:12px;color:#444;background:#fff;border:1px solid var(--border);
+      padding:6px 10px;border-radius:999px;
+    }
+
+    /* ✅ 新增：偏移输入 */
+    .field{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#fff;
+      font-size:12px;
+      color:#333;
+    }
+    .field input{
+      width:110px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:6px 8px;
+      outline:none;
+      font-size:12px;
+    }
+    .field .mini{
+      color:#666;
+    }
+
+    @media (max-width:980px){.grid{grid-template-columns:1fr;}#lyricsView{font-size:20px;}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <h2>Step 1 输入歌词（分行）</h2>
+        <textarea id="lyricsInput" placeholder="每行一句，比如：&#10;你是我天边最美的云彩，OK?&#10;Let it go, let it go"></textarea>
+
+        <div class="row">
+          <input id="audioInput" type="file" accept="audio/*" />
+
+          <div class="field" title="负数=提前（时间戳变小），正数=延后（时间戳变大），推荐-100ms">
+            <span>时间轴偏移</span>
+            <input id="timeOffsetMs" type="number" step="1" value="0" />
+            <span class="mini">ms（- 提前 / + 延后）</span>
+          </div>
+
+          <span class="status" id="status">未开始</span>
+        </div>
+
+        <div class="row">
+          <button id="btnRender" class="ghost">渲染歌词</button>
+          <button id="btnStart" disabled>开始</button>
+          <button id="btnPause" class="ghost" disabled>暂停/继续</button>
+          <button id="btnReset" class="ghost">重置</button>
+          <button id="btnExport" class="ghost" disabled>手动导出</button>
+        </div>
+
+        <div class="dl">
+          <button id="btnSave" class="ghost" disabled>保存 .krk</button>
+          <span class="filehint" id="saveName">文件名：未确定</span>
+        </div>
+
+        <div class="hint">
+          规则：标点不打点；英文按单词打点；中文按单字打点。<br/>
+          快捷键：<span class="k">A-Z</span> 打点推进｜<span class="k">Space</span> 暂停/继续｜<span class="k">←</span>/<span class="k">Backspace</span> 回退1单位并重播｜<span class="k">↑</span> 回退当前行并重播<br/>
+          ✅ 打点完成会自动导出，并自动准备“保存为：音频文件名+.krk”
+        </div>
+
+        <audio id="audio" controls style="width:100%; margin-top:10px;"></audio>
+      </div>
+
+      <div class="card">
+        <h2>Step 2 逐字显示</h2>
+        <div id="lyricsView"></div>
+
+        <h2 style="margin-top:14px;">Step 3 导出预览（每行占一行）</h2>
+        <textarea id="exportOutput" placeholder="打点完成后会自动生成在这里" readonly></textarea>
+        <div class="hint">
+          导出：保留原行空格/标点；仅在需打点的单位前插入时间戳 <span class="k">[mm:ss.mmm]</span><br/>
+          未打点会显示 <span class="k">[--:--.---]</span> 占位符（方便查漏）<br/>
+          ✅ 预览/导出会应用“时间轴偏移（ms）”
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vizBar">
+    <canvas id="viz"></canvas>
+  </div>
+
+  <script>
+    const elLyricsInput = document.getElementById("lyricsInput");
+    const elAudioInput  = document.getElementById("audioInput");
+    const elAudio       = document.getElementById("audio");
+    const elLyricsView  = document.getElementById("lyricsView");
+    const elExportOut   = document.getElementById("exportOutput");
+    const elStatus      = document.getElementById("status");
+
+    const btnRender = document.getElementById("btnRender");
+    const btnStart  = document.getElementById("btnStart");
+    const btnPause  = document.getElementById("btnPause");
+    const btnReset  = document.getElementById("btnReset");
+    const btnExport = document.getElementById("btnExport");
+
+    const btnSave   = document.getElementById("btnSave");
+    const elSaveName= document.getElementById("saveName");
+
+    // ✅ 新增：偏移输入
+    const elOffsetMs = document.getElementById("timeOffsetMs");
+
+    const canvas = document.getElementById("viz");
+    const vctx = canvas.getContext("2d");
+
+    // 原始分行
+    let rawLines = [];
+
+    // 显示用：每个可见字符一个 span（含空格/标点）
+    let spans = [];
+
+    // tokens：需要打点的单位（中文单字 / 英文单词）
+    // token: { text, lineIndex, start, end, spanIdxs:number[], wrapperEl?:HTMLElement }
+    let tokens = [];
+    let stampsSec = [];
+    let lineTokenIdxs = [];
+
+    let started = false;
+    let currentToken = 0;
+    let prevToken = -1;
+
+    // 保存相关
+    let audioBaseName = "lyrics";
+    let lastExportText = "";
+    let lastExportBlobUrl = null;
+
+    // ===== 频谱（WebAudio）=====
+    let audioCtx = null, analyser = null, sourceNode = null, freqData = null;
+    let audioConnected = false, rafId = null;
+
+    function ensureAudioGraph(){
+      if(audioConnected) return;
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.85;
+
+      sourceNode = audioCtx.createMediaElementSource(elAudio);
+      sourceNode.connect(analyser);
+      analyser.connect(audioCtx.destination);
+
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+      audioConnected = true;
+      startVizLoop();
+    }
+
+    function resizeCanvas(){
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(1, Math.floor(rect.width * dpr));
+      const h = Math.max(1, Math.floor(rect.height * dpr));
+      if(canvas.width !== w || canvas.height !== h){
+        canvas.width = w; canvas.height = h;
+      }
+    }
+
+    function drawViz(){
+      resizeCanvas();
+      const w = canvas.width, h = canvas.height;
+      vctx.clearRect(0,0,w,h);
+
+      vctx.fillStyle = "#ffffff";
+      vctx.fillRect(0,0,w,h);
+
+      if(!analyser || !freqData) return;
+
+      analyser.getByteFrequencyData(freqData);
+
+      const bins = Math.min(freqData.length, 256);
+      const barCount = 96;
+      const step = Math.floor(bins / barCount) || 1;
+      const gap = Math.max(1, Math.floor(w / (barCount * 12)));
+      const barW = Math.max(2, Math.floor((w - gap * (barCount + 1)) / barCount));
+
+      let x = gap;
+      for(let i=0;i<barCount;i++){
+        const idx = i * step;
+        let v = 0;
+        const end = Math.min(idx + step, bins);
+        for(let j=idx;j<end;j++) v += freqData[j];
+        v /= (end - idx) || 1;
+
+        const barH = Math.max(2, Math.floor((v / 255) * (h - 10)));
+        const y = h - barH;
+
+        vctx.fillStyle = "#111";
+        vctx.globalAlpha = 0.12 + 0.75 * (v / 255);
+        vctx.fillRect(x, y, barW, barH);
+
+        x += barW + gap;
+      }
+      vctx.globalAlpha = 1;
+    }
+
+    function startVizLoop(){
+      if(rafId) return;
+      const loop = ()=>{
+        drawViz();
+        rafId = requestAnimationFrame(loop);
+      };
+      rafId = requestAnimationFrame(loop);
+    }
+
+    // ===== 工具函数 =====
+    function pad2(n){ return String(n).padStart(2,"0"); }
+    function pad3(n){ return String(n).padStart(3,"0"); }
+
+    function formatTimestamp(sec){
+      if(!Number.isFinite(sec) || sec < 0) sec = 0;
+      const mm = Math.floor(sec/60);
+      const ss = Math.floor(sec%60);
+      const ms = Math.floor((sec - Math.floor(sec)) * 1000);
+      return `[${pad2(mm)}:${pad2(ss)}.${pad3(ms)}]`;
+    }
+
+    function setStatus(t){ elStatus.textContent = t; }
+
+    function isPunctOrSymbol(ch){ return /[\p{P}\p{S}]/u.test(ch); }
+    function isWhitespace(ch){ return /\s/u.test(ch); }
+    function isAsciiLetter(ch){ return /^[A-Za-z]$/.test(ch); }
+
+    function cleanBaseName(name){
+      const base = name.replace(/\.[^/.]+$/,"");
+      return base.replace(/[\\/:*?"<>|]+/g, "_").trim() || "lyrics";
+    }
+
+    function setSaveFilenameFromAudio(file){
+      audioBaseName = cleanBaseName(file?.name || "lyrics");
+      elSaveName.textContent = `文件名：${audioBaseName}.krk`;
+    }
+
+    // ✅ 新增：读取偏移（ms -> sec）
+    function getOffsetMs(){
+      const n = Number(elOffsetMs.value);
+      return Number.isFinite(n) ? Math.trunc(n) : 0;
+    }
+    function getOffsetSec(){
+      return getOffsetMs() / 1000;
+    }
+
+    function rebuildButtons(){
+      btnStart.disabled = !(tokens.length > 0 && !!elAudio.src);
+      btnPause.disabled = !started;
+      btnExport.disabled = !(tokens.length > 0);
+      btnSave.disabled = !(lastExportText && lastExportText.length > 0);
+    }
+
+    // ===== 当前单位蓝框 + 跟随滚动 =====
+    let lastAutoScrollAt = 0;
+
+    function applyCurrentBox(){
+      for(const s of spans) s.classList.remove("curr");
+      for(const tok of tokens) tok.wrapperEl?.classList.remove("curr");
+
+      if(!(started && currentToken >= 0 && currentToken < tokens.length)) return;
+
+      const tok = tokens[currentToken];
+      let focusEl = null;
+
+      if(tok.wrapperEl){
+        tok.wrapperEl.classList.add("curr");
+        focusEl = tok.wrapperEl;
+      }else{
+        for(const idx of tok.spanIdxs) spans[idx].classList.add("curr");
+        focusEl = spans[tok.spanIdxs[0]];
+      }
+      if(!focusEl) return;
+
+      const now = performance.now();
+      if(now - lastAutoScrollAt < 80) return;
+      lastAutoScrollAt = now;
+
+      const rect = focusEl.getBoundingClientRect();
+      const margin = 120;
+      if(rect.top < margin || rect.bottom > (window.innerHeight - margin)){
+        focusEl.scrollIntoView({ block:"center", inline:"nearest", behavior:"smooth" });
+      }
+    }
+
+    function updateColors(){
+      for(const s of spans) s.className = "ch todo";
+
+      for(let t=0;t<currentToken;t++){
+        const tok = tokens[t];
+        for(const idx of tok.spanIdxs) spans[idx].className = "ch done";
+      }
+
+      if(prevToken >= 0 && prevToken < tokens.length){
+        for(const idx of tokens[prevToken].spanIdxs) spans[idx].className = "ch prev";
+      }
+
+      applyCurrentBox();
+    }
+
+    // ===== 渲染歌词 =====
+    function renderLyrics(){
+      const raw = elLyricsInput.value ?? "";
+      rawLines = raw.split(/\r?\n/);
+
+      spans = [];
+      tokens = [];
+      stampsSec = [];
+      lineTokenIdxs = rawLines.map(()=>[]);
+
+      started = false;
+      currentToken = 0;
+      prevToken = -1;
+
+      elLyricsView.innerHTML = "";
+      elExportOut.value = "";
+      lastExportText = "";
+      if(lastExportBlobUrl){ URL.revokeObjectURL(lastExportBlobUrl); lastExportBlobUrl = null; }
+
+      let globalSpanIdx = 0;
+
+      rawLines.forEach((line, li)=>{
+        const row = document.createElement("div");
+        let i=0;
+
+        while(i < line.length){
+          const ch = line[i];
+
+          // 空白/标点：只显示不打点
+          if(isWhitespace(ch) || isPunctOrSymbol(ch)){
+            const s = document.createElement("span");
+            s.className = "ch todo";
+            s.textContent = (ch===" ") ? "\u00A0" : ch;
+            row.appendChild(s);
+            spans.push(s);
+            i++; globalSpanIdx++;
+            continue;
+          }
+
+          // 英文单词：用 wrapper 统一框住
+          if(isAsciiLetter(ch)){
+            const start = i;
+            const spanIdxs = [];
+
+            const wrap = document.createElement("span");
+            wrap.className = "wordwrap";
+            row.appendChild(wrap);
+
+            while(i < line.length){
+              const c = line[i];
+
+              if(isAsciiLetter(c)){
+                const s = document.createElement("span");
+                s.className = "ch todo";
+                s.textContent = c;
+                wrap.appendChild(s);
+                spans.push(s);
+                spanIdxs.push(globalSpanIdx);
+                i++; globalSpanIdx++;
+                continue;
+              }
+
+              if(c==="'" && i+1<line.length && isAsciiLetter(line[i+1])){
+                const s = document.createElement("span");
+                s.className = "ch todo";
+                s.textContent = c;
+                wrap.appendChild(s);
+                spans.push(s);
+                spanIdxs.push(globalSpanIdx);
+                i++; globalSpanIdx++;
+                continue;
+              }
+
+              break;
+            }
+
+            const end = i;
+            const word = line.slice(start, end);
+
+            const tokIdx = tokens.length;
+            tokens.push({ text: word, lineIndex: li, start, end, spanIdxs, wrapperEl: wrap });
+            stampsSec.push(null);
+            lineTokenIdxs[li].push(tokIdx);
+
+            continue;
+          }
+
+          // 中文等：单字 token
+          {
+            const s = document.createElement("span");
+            s.className = "ch todo";
+            s.textContent = (ch===" ") ? "\u00A0" : ch;
+            row.appendChild(s);
+            spans.push(s);
+
+            const tokIdx = tokens.length;
+            tokens.push({ text: ch, lineIndex: li, start: i, end: i+1, spanIdxs: [globalSpanIdx] });
+            stampsSec.push(null);
+            lineTokenIdxs[li].push(tokIdx);
+
+            i++; globalSpanIdx++;
+          }
+        }
+
+        elLyricsView.appendChild(row);
+      });
+
+      updateColors();
+      rebuildButtons();
+      setStatus(tokens.length > 0 ? "已渲染，待开始" : "歌词为空");
+    }
+
+    // ===== 播放控制 =====
+    function safePlay(){
+      ensureAudioGraph();
+      if(audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(()=>{});
+      elAudio.play().catch(()=> setStatus("播放被阻止：手动点一下音频播放键"));
+    }
+
+    function start(){
+      if(!elAudio.src){ setStatus("先上传音频"); return; }
+      if(tokens.length === 0){ setStatus("先渲染歌词"); return; }
+
+      started = true;
+
+      elAudio.currentTime = 0;
+      currentToken = 0;
+      prevToken = -1;
+      stampsSec = stampsSec.map(()=>null);
+
+      updateColors();
+      rebuildButtons();
+      safePlay();
+      setStatus("进行中：按 A-Z 打点");
+      window.focus();
+    }
+
+    function togglePause(){
+      if(!started) return;
+      if(elAudio.paused){
+        safePlay();
+        setStatus("进行中：按 A-Z 打点");
+      }else{
+        elAudio.pause();
+        setStatus("已暂停");
+      }
+      updateColors();
+    }
+
+    function findPrevStampedIndex(beforeIdxExclusive){
+      for(let i=beforeIdxExclusive-1;i>=0;i--){
+        if(stampsSec[i] !== null) return i;
+      }
+      return -1;
+    }
+
+    function restartFromPrevMinus5(){
+      const p = findPrevStampedIndex(currentToken);
+      prevToken = p;
+      const seek = (p>=0 && stampsSec[p] !== null) ? Math.max(0, stampsSec[p] - 5) : 0;
+      elAudio.currentTime = seek;
+      safePlay();
+      setStatus("重播中：按 A-Z 继续打点");
+      updateColors();
+    }
+
+    function stepForwardStamp(){
+      if(!started) return;
+
+      if(currentToken >= tokens.length){
+        setStatus("打点完成 ✅");
+        elAudio.pause();
+        updateColors();
+        return;
+      }
+
+      // ✅ 记录“原始音频时间”（不应用偏移，偏移只用于导出/预览）
+      stampsSec[currentToken] = elAudio.currentTime;
+
+      prevToken = currentToken;
+      currentToken += 1;
+
+      updateColors();
+
+      // ✅ 完成：自动导出 + 自动准备保存
+      if(currentToken >= tokens.length){
+        elAudio.pause();
+        setStatus("打点完成 ✅ 已自动导出（可保存 .krk）");
+        autoExportAndPrepareSave();
+      }
+    }
+
+    function stepBackOne(){
+      if(!started) return;
+      if(currentToken <= 0) return;
+
+      currentToken -= 1;
+      stampsSec[currentToken] = null;
+
+      restartFromPrevMinus5();
+    }
+
+    function backCurrentLineAll(){
+      if(!started) return;
+      if(tokens.length === 0) return;
+
+      const idx = Math.min(currentToken, tokens.length - 1);
+      const lineIdx = tokens[idx].lineIndex;
+
+      const list = lineTokenIdxs[lineIdx] || [];
+      if(list.length === 0) return;
+
+      for(const t of list) stampsSec[t] = null;
+
+      currentToken = list[0];
+      restartFromPrevMinus5();
+    }
+
+    // ===== 导出：每行一行 =====
+    function buildExportText(){
+      const byLineTokens = rawLines.map(()=>[]);
+      for(let ti=0;ti<tokens.length;ti++){
+        byLineTokens[tokens[ti].lineIndex].push(ti);
+      }
+
+      const offsetSec = getOffsetSec();
+
+      const outLines = rawLines.map((line, li)=>{
+        const idxs = byLineTokens[li].slice().sort((a,b)=>tokens[a].start - tokens[b].start);
+
+        let pos = 0;
+        let out = "";
+
+        for(const ti of idxs){
+          const tok = tokens[ti];
+          out += line.slice(pos, tok.start);
+
+          const rawSec = stampsSec[ti];
+          if(rawSec === null){
+            out += "[--:--.---]" + tok.text;
+          }else{
+            // ✅ 应用偏移并裁剪到 >= 0
+            const shifted = Math.max(0, rawSec + offsetSec);
+            out += formatTimestamp(shifted) + tok.text;
+          }
+
+          pos = tok.end;
+        }
+
+        out += line.slice(pos);
+        return out;
+      });
+
+      return outLines.join("\n");
+    }
+
+    function exportResult(){
+      const outText = buildExportText();
+      lastExportText = outText;
+      elExportOut.value = outText;
+      rebuildButtons();
+      return outText;
+    }
+
+    function autoExportAndPrepareSave(){
+      exportResult();
+      if(lastExportBlobUrl){ URL.revokeObjectURL(lastExportBlobUrl); lastExportBlobUrl = null; }
+      const blob = new Blob([lastExportText], { type: "text/plain;charset=utf-8" });
+      lastExportBlobUrl = URL.createObjectURL(blob);
+      btnSave.disabled = false;
+    }
+
+    function saveKrk(){
+      if(!lastExportText) return;
+      const filename = `${audioBaseName}.krk`;
+
+      const blob = new Blob([lastExportText], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      setTimeout(()=> URL.revokeObjectURL(url), 1000);
+      setStatus(`已触发保存：${filename}`);
+    }
+
+    // ===== 键盘 =====
+    function onKeyDown(e){
+      if(e.key === " "){
+        e.preventDefault();
+        togglePause();
+        return;
+      }
+
+      if(!started) return;
+
+      if(/^[a-zA-Z]$/.test(e.key)){
+        e.preventDefault();
+        stepForwardStamp();
+        return;
+      }
+
+      if(e.key === "ArrowLeft" || e.key === "Backspace"){
+        e.preventDefault();
+        stepBackOne();
+        return;
+      }
+
+      if(e.key === "ArrowUp"){
+        e.preventDefault();
+        backCurrentLineAll();
+        return;
+      }
+    }
+
+    // ===== 事件绑定 =====
+    elAudioInput.addEventListener("change", ()=>{
+      const f = elAudioInput.files && elAudioInput.files[0];
+      if(!f) return;
+
+      setSaveFilenameFromAudio(f);
+
+      elAudio.src = URL.createObjectURL(f);
+      setStatus("音频已加载");
+      rebuildButtons();
+      drawViz();
+    });
+
+    elAudio.addEventListener("play", ()=>{
+      ensureAudioGraph();
+      if(audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(()=>{});
+    });
+
+    // ✅ 偏移改变：立刻刷新导出预览（不改 stamps，只改显示/导出）
+    elOffsetMs.addEventListener("input", ()=>{
+      // 只要有导出内容，就立即更新预览/最新导出文本
+      if(tokens.length > 0){
+        exportResult();
+        if(lastExportText){
+          if(lastExportBlobUrl){ URL.revokeObjectURL(lastExportBlobUrl); lastExportBlobUrl = null; }
+          const blob = new Blob([lastExportText], { type:"text/plain;charset=utf-8" });
+          lastExportBlobUrl = URL.createObjectURL(blob);
+          btnSave.disabled = false;
+          setStatus(`偏移已应用：${getOffsetMs()}ms（预览/导出已更新）`);
+        }
+      }
+    });
+
+    btnRender.addEventListener("click", renderLyrics);
+    btnStart.addEventListener("click", start);
+    btnPause.addEventListener("click", togglePause);
+
+    btnReset.addEventListener("click", ()=>{
+      started = false;
+      elAudio.pause();
+      elAudio.currentTime = 0;
+
+      currentToken = 0;
+      prevToken = -1;
+      stampsSec = stampsSec.map(()=>null);
+
+      lastExportText = "";
+      elExportOut.value = "";
+      btnSave.disabled = true;
+      if(lastExportBlobUrl){ URL.revokeObjectURL(lastExportBlobUrl); lastExportBlobUrl = null; }
+
+      updateColors();
+      rebuildButtons();
+      setStatus("已重置");
+    });
+
+    btnExport.addEventListener("click", ()=>{
+      exportResult();
+      if(lastExportText){
+        if(lastExportBlobUrl){ URL.revokeObjectURL(lastExportBlobUrl); lastExportBlobUrl = null; }
+        const blob = new Blob([lastExportText], { type:"text/plain;charset=utf-8" });
+        lastExportBlobUrl = URL.createObjectURL(blob);
+        btnSave.disabled = false;
+        setStatus("已导出（可保存 .krk）");
+      }
+    });
+
+    btnSave.addEventListener("click", saveKrk);
+
+    window.addEventListener("keydown", onKeyDown);
+
+    drawViz();
+    setStatus("未开始");
+  </script>
+  <script>
+(function() {
+    'use strict';
+
+    // 创建长形悬浮按键区域
+    const longButton = document.createElement('div');
+    longButton.style.position = 'fixed';
+    longButton.style.left = '50%';
+    longButton.style.bottom = '100px';  // 距离底部 100px
+    longButton.style.transform = 'translateX(-50%)';
+    longButton.style.width = '300px';
+    longButton.style.height = '40px';
+    longButton.style.backgroundColor = '#4CAF50';
+    longButton.style.color = 'white';
+    longButton.style.display = 'flex';
+    longButton.style.justifyContent = 'center';
+    longButton.style.alignItems = 'center';
+    longButton.style.borderRadius = '20px';
+    longButton.style.cursor = 'pointer';
+    longButton.style.zIndex = '9999';  // 确保在最上层
+    longButton.innerHTML = '点击此处进行打点';
+    document.body.appendChild(longButton);
+
+    // 创建圆形悬浮按键
+    const roundButton = document.createElement('div');
+    roundButton.style.position = 'fixed';
+    roundButton.style.right = '20px';
+    roundButton.style.bottom = '20px';  // 距离底部 20px
+    roundButton.style.width = '50px';
+    roundButton.style.height = '50px';
+    roundButton.style.backgroundColor = '#FF6347';
+    roundButton.style.borderRadius = '50%';
+    roundButton.style.cursor = 'pointer';
+    roundButton.style.display = 'flex';
+    roundButton.style.justifyContent = 'center';
+    roundButton.style.alignItems = 'center';
+    roundButton.style.color = 'white';
+    roundButton.style.zIndex = '9999';  // 确保在最上层
+    roundButton.innerHTML = '回退';
+    document.body.appendChild(roundButton);
+
+    // 转换秒数为 [mm:ss.mmm] 格式
+    function formatTimestamp(sec){
+        const mm = Math.floor(sec / 60);
+        const ss = Math.floor(sec % 60);
+        const ms = Math.floor((sec - Math.floor(sec)) * 1000);
+        return `[${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}.${String(ms).padStart(3, '0')}]`;
+    }
+
+function updateTimestamp() {
+    if (elAudio.currentTime) {
+        // 直接使用音频的 currentTime 作为时间戳
+        longButton.innerHTML = formatTimestamp(elAudio.currentTime);  // 更新按钮文本
+    }
+}
+
+    // 每秒更新时间戳
+    elAudio.addEventListener('timeupdate', updateTimestamp);  // 每次音频播放时更新按钮文本
+
+    // 触摸按下事件
+    longButton.addEventListener('touchstart', (e) => {
+        e.preventDefault();  // 阻止默认触摸事件，避免页面滚动等
+        stepForwardStamp();
+    });
+
+    // 触摸松开事件
+    longButton.addEventListener('touchend', (e) => {
+        e.preventDefault();  // 阻止默认触摸事件，避免页面滚动等
+        simulateKeyEvent('k', 'keyup');
+    });
+
+    // 触摸按下事件
+    roundButton.addEventListener('touchstart', (e) => {
+        e.preventDefault();  // 阻止默认触摸事件，避免页面滚动等
+        stepBackOne();
+    });
+
+    // 触摸松开事件
+    roundButton.addEventListener('touchend', (e) => {
+        e.preventDefault();  // 阻止默认触摸事件，避免页面滚动等
+        simulateKeyEvent('ArrowLeft', 'keyup');
+    });
+})();
+    </script>
+</body>
+</html>
